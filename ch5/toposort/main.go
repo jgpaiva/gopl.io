@@ -17,6 +17,8 @@ var prereqs = map[string][]string{
 	"algorithms": {"data structures"},
 	"calculus":   {"linear algebra"},
 
+	"linear algebra": {"networks"},
+
 	"compilers": {
 		"data structures",
 		"formal languages",
@@ -27,7 +29,7 @@ var prereqs = map[string][]string{
 	"databases":             {"data structures"},
 	"discrete math":         {"intro to programming"},
 	"formal languages":      {"discrete math"},
-	"networks":              {"operating systems"},
+	"networks":              {"operating systems", "calculus"},
 	"operating systems":     {"data structures", "computer organization"},
 	"programming languages": {"data structures", "computer organization"},
 }
@@ -44,13 +46,18 @@ func main() {
 func topoSort(m map[string][]string) []string {
 	var order []string
 	seen := make(map[string]bool)
-	var visitAll func(items []string)
+	var visitAll func(items []string, path []string)
 
-	visitAll = func(items []string) {
+	visitAll = func(items []string, path []string) {
 		for _, item := range items {
+			for _, pathItem := range path {
+				if pathItem == item {
+					fmt.Println("Found cycle: ", append(path, item))
+				}
+			}
 			if !seen[item] {
 				seen[item] = true
-				visitAll(m[item])
+				visitAll(m[item], append(path, item))
 				order = append(order, item)
 			}
 		}
@@ -62,7 +69,7 @@ func topoSort(m map[string][]string) []string {
 	}
 
 	sort.Strings(keys)
-	visitAll(keys)
+	visitAll(keys, []string{})
 	return order
 }
 

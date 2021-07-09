@@ -8,9 +8,12 @@ package main
 
 import (
 	"fmt"
+	"html/template"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"sort"
-	"text/tabwriter"
 	"time"
 )
 
@@ -41,15 +44,39 @@ func length(s string) time.Duration {
 //!-main
 
 //!+printTracks
-func printTracks(tracks []*Track) {
-	const format = "%v\t%v\t%v\t%v\t%v\t\n"
-	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
-	fmt.Fprintf(tw, format, "Title", "Artist", "Album", "Year", "Length")
-	fmt.Fprintf(tw, format, "-----", "------", "-----", "----", "------")
-	for _, t := range tracks {
-		fmt.Fprintf(tw, format, t.Title, t.Artist, t.Album, t.Year, t.Length)
-	}
-	tw.Flush() // calculate column widths and print table
+func printTracks(w io.Writer, tracks []*Track) {
+	/*	const format = "%v\t%v\t%v\t%v\t%v\t\n"
+		tw := new(tabwriter.Writer).Init(w, 0, 8, 2, ' ', 0)
+		fmt.Fprintf(tw, format, "Title", "Artist", "Album", "Year", "Length")
+		fmt.Fprintf(tw, format, "-----", "------", "-----", "----", "------")
+		for _, t := range tracks {
+			fmt.Fprintf(tw, format, t.Title, t.Artist, t.Album, t.Year, t.Length)
+		}
+		tw.Flush() // calculate column widths and print table
+	*/
+	const templ = `
+	<h1>Tracks</h1>
+	<table>
+	<tr style='text-align: left'>
+	<th><a href='/by-title'>Title</a></th>
+	<th><a href='/by-artist'>Artist</a></th>
+	<th><a href='/by-album'>Album</a></th>
+	<th><a href='/by-year'>Year</a></th>
+	<th><a href='/by-length'>Length</a></th>
+	</tr>
+	{{range .Items}}
+	<tr>
+	<td>{{.Title}}</td>
+	<td>{{.Artist}}</td>
+	<td>{{.Album}}</td>
+	<td>{{.Year}}</td>
+	<td>{{.Length}}</td>
+	</tr>
+	{{end}}
+	</table>
+	`
+	report := template.Must(template.New("table").Parse(templ))
+	report.Execute(w, struct{ Items []*Track }{tracks})
 }
 
 //!-printTracks
@@ -63,6 +90,12 @@ func (x byArtist) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 //!-artistcode
 
+type byTitle []*Track
+
+func (x byTitle) Len() int           { return len(x) }
+func (x byTitle) Less(i, j int) bool { return x[i].Title < x[j].Title }
+func (x byTitle) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
 //!+yearcode
 type byYear []*Track
 
@@ -72,18 +105,72 @@ func (x byYear) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 //!-yearcode
 
+type byAlbum []*Track
+
+func (x byAlbum) Len() int           { return len(x) }
+func (x byAlbum) Less(i, j int) bool { return x[i].Album < x[j].Album }
+func (x byAlbum) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
+type byLength []*Track
+
+func (x byLength) Len() int           { return len(x) }
+func (x byLength) Less(i, j int) bool { return x[i].Length < x[j].Length }
+func (x byLength) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
+func copyTracks() []*Track {
+	tracks2 := make([]*Track, len(tracks))
+	copy(tracks2, tracks)
+	return tracks2
+}
+
+func extracted(w http.ResponseWriter, f func(t []*Track) sort.Interface) {
+	tracks2 := copyTracks()
+	sort.Sort(f(tracks2))
+	printTracks(w, tracks2)
+}
+
 func main() {
+	z := "web"
+	if z == "web" {
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			printTracks(w, tracks)
+		}
+		byTitleHandler := func(w http.ResponseWriter, r *http.Request) {
+			extracted(w, func(t []*Track) sort.Interface { return byTitle(t) })
+		}
+		byArtistHandler := func(w http.ResponseWriter, r *http.Request) {
+			extracted(w, func(t []*Track) sort.Interface { return byArtist(t) })
+		}
+		byAlbumHandler := func(w http.ResponseWriter, r *http.Request) {
+			extracted(w, func(t []*Track) sort.Interface { return byAlbum(t) })
+		}
+		byYearHandler := func(w http.ResponseWriter, r *http.Request) {
+			extracted(w, func(t []*Track) sort.Interface { return byYear(t) })
+		}
+		byLengthHandler := func(w http.ResponseWriter, r *http.Request) {
+			extracted(w, func(t []*Track) sort.Interface { return byLength(t) })
+		}
+		http.HandleFunc("/", handler)
+		http.HandleFunc("/by-title", byTitleHandler)
+		http.HandleFunc("/by-artist", byArtistHandler)
+		http.HandleFunc("/by-album", byAlbumHandler)
+		http.HandleFunc("/by-year", byYearHandler)
+		http.HandleFunc("/by-length", byLengthHandler)
+		log.Fatal(http.ListenAndServe("localhost:8000", nil))
+		return
+	}
+
 	fmt.Println("byArtist:")
 	sort.Sort(byArtist(tracks))
-	printTracks(tracks)
+	printTracks(os.Stdout, tracks)
 
 	fmt.Println("\nReverse(byArtist):")
 	sort.Sort(sort.Reverse(byArtist(tracks)))
-	printTracks(tracks)
+	printTracks(os.Stdout, tracks)
 
 	fmt.Println("\nbyYear:")
 	sort.Sort(byYear(tracks))
-	printTracks(tracks)
+	printTracks(os.Stdout, tracks)
 
 	fmt.Println("\nCustom:")
 	//!+customcall
@@ -100,7 +187,7 @@ func main() {
 		return false
 	}})
 	//!-customcall
-	printTracks(tracks)
+	printTracks(os.Stdout, tracks)
 }
 
 /*

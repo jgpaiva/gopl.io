@@ -14,7 +14,16 @@ import (
 	"os"
 )
 
+func test(i *int) bool {
+	*i = *i + 1
+	return *i < 3
+}
+
 func main() {
+	i := 0
+	for test(&i) {
+		fmt.Println("hi")
+	}
 	counts := make(map[string]int)
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {

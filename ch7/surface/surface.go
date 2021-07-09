@@ -12,10 +12,11 @@ import (
 	"log"
 	"math"
 	"net/http"
+
+	"gopl.io/ch7/eval"
 )
 
 //!+parseAndCheck
-import "gopl.io/ch7/eval"
 
 //!-parseAndCheck
 
@@ -31,7 +32,7 @@ const (
 
 var sin30, cos30 = 0.5, math.Sqrt(3.0 / 4.0) // sin(30°), cos(30°)
 
-func corner(f func(x, y float64) float64, i, j int) (float64, float64) {
+func corner(f func(x, y float64) float64, i, j int) (sx float64, sy float64) {
 	// find point (x,y) at corner of cell (i,j)
 	x := xyrange * (float64(i)/cells - 0.5)
 	y := xyrange * (float64(j)/cells - 0.5)
@@ -39,9 +40,9 @@ func corner(f func(x, y float64) float64, i, j int) (float64, float64) {
 	z := f(x, y) // compute surface height z
 
 	// project (x,y,z) isometrically onto 2-D SVG canvas (sx,sy)
-	sx := width/2 + (x-y)*cos30*xyscale
-	sy := height/2 + (x+y)*sin30*xyscale - z*zscale
-	return sx, sy
+	sx = width/2 + (x-y)*cos30*xyscale
+	sy = height/2 + (x+y)*sin30*xyscale - z*zscale
+	return
 }
 
 func surface(w io.Writer, f func(x, y float64) float64) {
